@@ -4,6 +4,9 @@ import copy
 import re
 import os
 import json
+import glob
+from os import path
+
 
 # Libraries required to limit the time taken by a request
 import signal
@@ -14,8 +17,10 @@ base_dir	= "../output"
 company_dir	= base_dir+'/Companies'
 category_Company_dir = base_dir+'/Category-Companies'
 company_sector = {}
+badUrls=[]
 
 class TimeoutException(Exception): pass
+class CannotOpenUrlException(Exception): pass
 
 @contextmanager
 def time_limit(seconds):
@@ -37,7 +42,8 @@ def ckdir(dir):
 
 def get_response(aurl):
 	hdr				= {'User-Agent':'Mozilla/5.0'}
-
+	noOfTries=0
+	content={}
 	while True:
 		try: 
 			# Waiting 60 seconds to recieve a responser object
@@ -46,6 +52,9 @@ def get_response(aurl):
 			break
 		except Exception:
 			print("Error opening url!!")
+			noOfTries += 1
+			if noOfTries>=10:
+				raise CannotOpenUrlException("Tried Url "+str(noOfTries)+". No Response")
 			continue
 
 	return content
@@ -53,7 +62,7 @@ def get_response(aurl):
 # Procedure to return a parseable BeautifulSoup object of a given url
 def get_soup(aurl):
 	response 		= get_response(aurl)
-	soup 			= BeautifulSoup(response,'html.parser')
+	soup 			= BeautifulSoup(response,'html.parser',from_encoding="iso-8859-1")
 	return soup
 
 
@@ -120,18 +129,22 @@ def get_values(soup,fname):
 def get_Data(aurl,fname):
 	soup	= get_soup(aurl)
 	og_table	= soup.find('div',{'class':'boxBg1'})
-	links	= og_table.find('ul',{'class':'tabnsdn FL'})
-	for link in links.find_all('li'):
-		format_type = link.get_text()
-		new_fname = fname + format_type + ".csv"
-		if link.find('a',{'class':'active'}):
-			table 		= og_table
-		else:
-			web_address	= baseurl + link.find('a')['href']
-			new_soup	= get_soup(web_address)
-			table 		= new_soup.find('div',{'class':'boxBg1'})
+	try:
+		links	= og_table.find('ul',{'class':'tabnsdn FL'})
+		for link in links.find_all('li'):
+			format_type = link.get_text()
+			new_fname = fname + format_type + ".csv"
+			if link.find('a',{'class':'active'}):
+				table 		= og_table
+			else:
+				web_address	= baseurl + link.find('a')['href']
+				new_soup	= get_soup(web_address)
+				table 		= new_soup.find('div',{'class':'boxBg1'})
 
-		get_values(table,new_fname)
+			get_values(table,new_fname)
+	except AttributeError:
+		print("New error: Data on '"+aurl + "' doesn't exist anymore.")
+		return
 
 	return
 
@@ -201,6 +214,14 @@ def get_Company_Data(aurl,aname):
 		json.dump(company_sector,outfile)
 	return
 
+def update_Company_Sector(aurl,aname):
+	soup	= get_soup(aurl)
+	company_sector["companies"][aname] = get_sector(soup)
+
+	with open(base_dir+"/company-sector.json",'w') as outfile:
+		json.dump(company_sector,outfile)
+	return
+
 
 def get_list(aurl,category):
 	details	= []
@@ -245,6 +266,7 @@ def get_sector_data(aurl):
 
 
 def get_alpha_quotes(aurl):
+
 	soup = get_soup(aurl)
 
 	print(aurl)
@@ -253,20 +275,39 @@ def get_alpha_quotes(aurl):
 
 	companies = list.find_all('a')
 
+	pattern = company_dir+"/*PL-Standalone.csv"
+
+	files = [path.basename(x).split('-PL-', 1)[0] for x in glob.glob(pattern)]
+
 	for company in companies[:]:
 		if company.get_text() != '':
-			print(company.get_text()+" : "+company['href'])
-			get_Company_Data(company['href'],company.get_text())
+			processCompany(company,files)
 
+def processCompany(company,files):
+	if company.get_text() != '' and company.get_text() not in badUrls:
+		if company.get_text() not in files:
+			print(company.get_text()+" : "+company['href'])
+			try:
+				get_Company_Data(company['href'],company.get_text())
+			except CannotOpenUrlException:
+				badUrls.append(company.get_text())
+				with open(base_dir+"/badUrls.txt", 'w') as f:
+					f.write(company.get_text() + '\n')
+		else:
+			print(company.get_text()+" is already processed")
+			update_Company_Sector(company['href'],company.get_text())
 
 def get_all_quotes_data(aurl):
 	soup = get_soup(aurl)
 	list = soup.find('div',{'class':'MT2 PA10 brdb4px alph_pagn'})
 
 	links= list.find_all('a')
+	print(links)
 
-	for link in links[8:]:
-		# print(link.get_text()+" : "+baseurl+link['href'])
+#	for link in links[7:]:# uncomment this when 
+#you need to process from a particlaur alphabet e.g  fr H 8, for G 7
+	for link in links:
+		print(link.get_text()+" : "+baseurl+link['href'])
 		print("Accessing list for : "+link.get_text())
 		get_alpha_quotes(baseurl+link['href'])
 
@@ -285,6 +326,11 @@ if __name__ == '__main__':
 			company_sector = json.load(infile)
 	except FileNotFoundError:
 		company_sector = {"companies":{}}
+	try:
+		with open(base_dir+"/badUrls.txt",'r') as infile:
+			badUrls = [line.rstrip('\n') for line in infile]
+	except FileNotFoundError:
+		badUrls = []
 
 	# print(company_sector)
 
