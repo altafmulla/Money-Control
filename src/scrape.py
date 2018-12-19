@@ -191,6 +191,30 @@ def get_Company_Data(aurl,aname):
 		updateBadUrls(aname)
 		return
 
+	temp1 		= soup.find('div',{'id':'content_bse'})
+
+	try:
+		divtag		= temp1.find('div',{"class" : "bseNot"})
+		if 'not listed on BSE' in divtag.find('p').get_text():
+			print('not listed on BSE')
+			updateBadUrls(aname)
+			return
+	except AttributeError:
+		pass
+
+	temp2 		= soup.find('div',{'id':'content_nse'})
+
+	try:
+		divtag1		= temp2.find('div',{"class" : "bseNot"})
+		if 'not listed on NSE' in divtag1.find('p').get_text():
+			print('not listed on NSE')
+			updateBadUrls(aname)
+			return
+	except AttributeError:
+		pass
+
+
+
 	index 		= -1
 	for i in range(0,len(links)):
 		if links[i].get_text() == 'FINANCIALS':
@@ -271,8 +295,6 @@ def get_alpha_quotes(aurl):
 
 	soup = get_soup(aurl)
 
-	print(aurl)
-
 	list = soup.find('table',{'class':'pcq_tbl MT10'})
 
 	companies = list.find_all('a')
@@ -294,9 +316,8 @@ def processCompany(company,files):
 			except CannotOpenUrlException:
 				updateBadUrls(company.get_text())
 		else:
-			print(company.get_text()+" is already processed")
+			print(company.get_text())
 			if company.get_text() not in company_sector["companies"]:
-				print(company.get_text()+" is not in company_sector")
 				update_Company_Sector(company['href'],company.get_text())
 
 def updateBadUrls(aname):
