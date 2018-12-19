@@ -144,6 +144,7 @@ def get_Data(aurl,fname):
 			get_values(table,new_fname)
 	except AttributeError:
 		print("New error: Data on '"+aurl + "' doesn't exist anymore.")
+		updateBadUrls(fname)
 		return
 
 	return
@@ -187,6 +188,7 @@ def get_Company_Data(aurl,aname):
 
 	except AttributeError:
 		print("Data on '"+aname + "' doesn't exist anymore.")
+		updateBadUrls(aname)
 		return
 
 	index 		= -1
@@ -290,19 +292,23 @@ def processCompany(company,files):
 			try:
 				get_Company_Data(company['href'],company.get_text())
 			except CannotOpenUrlException:
-				badUrls.append(company.get_text())
-				with open(base_dir+"/badUrls.txt", 'w') as f:
-					f.write(company.get_text() + '\n')
+				updateBadUrls(company.get_text())
 		else:
 			print(company.get_text()+" is already processed")
-			update_Company_Sector(company['href'],company.get_text())
+			if company.get_text() not in company_sector["companies"]:
+				print(company.get_text()+" is not in company_sector")
+				update_Company_Sector(company['href'],company.get_text())
 
+def updateBadUrls(aname):
+	badUrls.append(aname)
+	with open(base_dir+"/badUrls.txt", 'a+') as f:
+		f.write(aname+ '\n')
 def get_all_quotes_data(aurl):
 	soup = get_soup(aurl)
 	list = soup.find('div',{'class':'MT2 PA10 brdb4px alph_pagn'})
 
 	links= list.find_all('a')
-	print(links)
+	#print(links)
 
 #	for link in links[7:]:# uncomment this when 
 #you need to process from a particlaur alphabet e.g  fr H 8, for G 7
@@ -332,7 +338,7 @@ if __name__ == '__main__':
 	except FileNotFoundError:
 		badUrls = []
 
-	# print(company_sector)
+	#print(company_sector)
 
 	# get_sector_data(url)
 	get_all_quotes_data(url)
