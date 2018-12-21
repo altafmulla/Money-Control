@@ -159,6 +159,9 @@ def get_BS_Data(aurl,aname):
 	rows = get_Data(aurl,aname+"-BS-")
 	return
 
+def get_CF_Data(aurl,aname):
+	get_Data(aurl,aname+"-CF-")
+	return
 
 def get_sector(asoup):
 
@@ -191,6 +194,7 @@ def get_Company_Data(aurl,aname):
 		updateBadUrls(aname)
 		return
 
+	listedonExchange=False
 	temp1 		= soup.find('div',{'id':'content_bse'})
 
 	try:
@@ -200,18 +204,20 @@ def get_Company_Data(aurl,aname):
 			updateBadUrls(aname)
 			return
 	except AttributeError:
+		listedonExchange=True
 		pass
 
-	temp2 		= soup.find('div',{'id':'content_nse'})
+	if listedonExchange == False:
+		temp2 		= soup.find('div',{'id':'content_nse'})
 
-	try:
-		divtag1		= temp2.find('div',{"class" : "bseNot"})
-		if 'not listed on NSE' in divtag1.find('p').get_text():
-			print('not listed on NSE')
-			updateBadUrls(aname)
-			return
-	except AttributeError:
-		pass
+		try:
+			divtag1		= temp2.find('div',{"class" : "bseNot"})
+			if 'not listed on NSE' in divtag1.find('p').get_text():
+				print('not listed on NSE')
+				updateBadUrls(aname)
+				return
+		except AttributeError:
+			pass
 
 
 
@@ -233,6 +239,10 @@ def get_Company_Data(aurl,aname):
 			if field.get_text() == "Balance Sheet":
 				required_link = baseurl + field['href']
 				get_BS_Data(required_link,aname)
+
+			if field.get_text() == "Cash Flow":
+				required_link = baseurl + field['href']
+				get_CF_Data(required_link,aname)
 
 	company_sector["companies"][aname] = get_sector(soup)
 
